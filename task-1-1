@@ -1,0 +1,75 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"io/ioutil"
+	"os"
+	"strconv"
+)
+
+type ProcessInfo struct {
+	Descriptors    int    `json:"number_of_descriptors"`
+	MemoryUsage    int64  `json:"memory_consumption"`
+	ExecutablePath string `json:"executable_path"`
+}
+
+type SystemInfo struct {
+	ProcessorInfo string `json:"processor_info"`
+	MemoryInfo    string `json:"memory_info"`
+}
+
+func main() {
+	// Get information about the current process
+	processInfo := ProcessInfo{}
+
+	// Number of descriptors
+	descriptors, err := ioutil.ReadDir("/proc/self/fd")
+	if err == nil {
+		processInfo.Descriptors = len(descriptors)
+	}
+
+	// Memory consumption
+	memInfo, err := ioutil.ReadFile("/proc/self/statm")
+	if err == nil {
+		fields := bytes.Fields(memInfo)
+		if len(fields) > 0 {
+			if v, err := strconv.ParseInt(string(fields[1]), 10, 64); err == nil {
+				processInfo.MemoryUsage = v * int64(os.Getpagesize())
+			}
+		}
+	}
+
+	// Path to the executable file
+	exePath, err := os.Executable()
+	if err == nil {
+		processInfo.ExecutablePath = exePath
+	}
+
+	// Get information about the current system
+	systemInfo := SystemInfo{}
+
+	// Processor information
+	cpuInfo, err := ioutil.ReadFile("/proc/cpuinfo")
+	if err == nil {
+		systemInfo.ProcessorInfo = string(cpuInfo)
+	}
+
+	// Memory information
+	memInfo, err = ioutil.ReadFile("/proc/meminfo")
+	if err == nil {
+		systemInfo.MemoryInfo = string(memInfo)
+	}
+
+	// Convert the information to JSON
+	output := map[string]interface{}{
+		"process_info": processInfo,
+		"system_info":  systemInfo,
+	}
+
+	jsonData, err := json.MarshalIndent(output, "", "    ")
+	if err == nil {
+		// Print the JSON data
+		println(string(jsonData))
+	}
+}
